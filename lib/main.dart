@@ -1,212 +1,167 @@
 import 'package:flutter/material.dart';
-import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:intl/intl.dart';
+import 'package:math_expressions/math_expressions.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await DatabaseHelper.instance.initDatabase();
-  runApp(MicroCreditoApp());
+void main() {
+  runApp(CalculadoraApp());
 }
 
-class DatabaseHelper {
-  static final DatabaseHelper instance = DatabaseHelper._init();
-  static Database? _database;
+class CalculadoraApp extends StatelessWidget {
+  const CalculadoraApp({super.key});
 
-  DatabaseHelper._init();
-
-  Future<void> initDatabase() async {
-    await database;
-  }
-
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB('microcredito.db');
-    return _database!;
-  }
-
-  Future<Database> _initDB(String filePath) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
-
-    return await openDatabase(path, version: 1, onCreate: _createDB);
-  }
-
-  Future _createDB(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL
-      )
-    ''');
-  }
-}
-
-class MicroCreditoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'MicroCrédito App',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: HomeScreen(),
+      home: Calculadora(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class Calculadora extends StatefulWidget {
+  const Calculadora({super.key});
+
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('MicroCrédito')),
-      drawer: AppDrawer(),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'Bienvenido a la app de MicroCrédito',
-              style: TextStyle(fontSize: 18),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => LoanRequestScreen()),
-                );
-              },
-              child: Text('Solicitar Crédito'),
-            ),
-          ],
+  _CalculadoraState createState() => _CalculadoraState();
+}
+
+class _CalculadoraState extends State<Calculadora> {
+  String entrada = "0";
+  String proceso = "";
+  final formatter = NumberFormat('#,###', 'en_US');
+
+  String formatResult(double result) {
+    if (result % 1 == 0) {
+      return formatter.format(result.toInt());
+    } else {
+      return NumberFormat('#,###.##', 'en_US').format(result);
+    }
+  }
+
+  void calcularResultado() {
+    try {
+      String expresion = proceso.replaceAll('%', '/100').replaceAll(',', '');
+      Parser p = Parser();
+      Expression exp = p.parse(expresion);
+      ContextModel cm = ContextModel();
+      double resultado = exp.evaluate(EvaluationType.REAL, cm);
+      setState(() {
+        entrada = formatResult(resultado);
+      });
+    } catch (e) {
+      setState(() {
+        entrada = "Error";
+      });
+    }
+  }
+
+  void onPressed(String valor) {
+    setState(() {
+      if (valor == "AC") {
+        entrada = "0";
+        proceso = "";
+      } else if (valor == "⌫") {
+        if (proceso.isNotEmpty) {
+          proceso = proceso.substring(0, proceso.length - 1);
+        }
+      } else if (valor == "=") {
+        calcularResultado();
+      } else {
+        if (valor == "%") {
+          proceso += "%";
+        } else if (valor == ",") {
+          proceso += ",";
+        } else {
+          if (proceso.isEmpty && ["+", "-", "*", "/"].contains(valor)) {
+            return;
+          }
+          proceso += valor;
+        }
+      }
+    });
+  }
+
+  Widget boton(String valor, Color colorFondo, Color colorTexto) {
+    return Expanded(
+      child: Padding(
+        padding: EdgeInsets.all(4.0),
+        child: ElevatedButton(
+          onPressed: () => onPressed(valor),
+          style: ElevatedButton.styleFrom(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: EdgeInsets.all(24),
+            backgroundColor: colorFondo,
+          ),
+          child: Text(valor, style: TextStyle(fontSize: 24, color: colorTexto)),
         ),
       ),
     );
   }
-}
-
-class LoanRequestScreen extends StatelessWidget {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController amountController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Solicitud de Crédito')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: emailController,
-              decoration: InputDecoration(
-                labelText: 'Correo Electrónico',
-                border: OutlineInputBorder(),
+      backgroundColor: Colors.black,
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Text(
+                      proceso,
+                      style: TextStyle(fontSize: 24, color: Colors.grey),
+                    ),
+                  ),
+                  Text(
+                    entrada,
+                    style: TextStyle(fontSize: 48, color: Colors.white),
+                  ),
+                ],
               ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            SizedBox(height: 10),
-            TextField(
-              controller: amountController,
-              decoration: InputDecoration(
-                labelText: 'Monto solicitado',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // Lógica para enviar solicitud de préstamo
-              },
-              child: Text('Enviar Solicitud'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AppDrawer extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          DrawerHeader(
-            decoration: BoxDecoration(color: Colors.blue),
-            child: Text(
-              'Menú',
-              style: TextStyle(color: Colors.white, fontSize: 24),
             ),
           ),
-          ListTile(
-            title: Text('Iniciar Sesión'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => LoginScreen()),
-              );
-            },
+          Column(
+            children: [
+              Row(children: [
+                boton("AC", Colors.grey, Colors.black),
+                boton("⌫", Colors.grey, Colors.black),
+                boton("%", Colors.grey, Colors.black),
+                boton("/", Colors.orange, Colors.white),
+              ]),
+              Row(children: [
+                boton("7", Colors.grey[850]!, Colors.white),
+                boton("8", Colors.grey[850]!, Colors.white),
+                boton("9", Colors.grey[850]!, Colors.white),
+                boton("*", Colors.orange, Colors.white),
+              ]),
+              Row(children: [
+                boton("4", Colors.grey[850]!, Colors.white),
+                boton("5", Colors.grey[850]!, Colors.white),
+                boton("6", Colors.grey[850]!, Colors.white),
+                boton("-", Colors.orange, Colors.white),
+              ]),
+              Row(children: [
+                boton("1", Colors.grey[850]!, Colors.white),
+                boton("2", Colors.grey[850]!, Colors.white),
+                boton("3", Colors.grey[850]!, Colors.white),
+                boton("+", Colors.orange, Colors.white),
+              ]),
+              Row(children: [
+                boton("0", Colors.grey[850]!, Colors.white),
+                boton(",", Colors.grey[850]!, Colors.white),
+                boton("=", Colors.orange, Colors.white),
+              ]),
+            ],
           ),
-          ListTile(title: Text('Ofertas'), onTap: () {}),
-          ListTile(title: Text('Conócenos'), onTap: () {}),
         ],
-      ),
-    );
-  }
-}
-
-class LoginScreen extends StatelessWidget {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Iniciar Sesión')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: emailController,
-              decoration: InputDecoration(
-                labelText: 'Correo Electrónico',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            SizedBox(height: 10),
-            TextField(
-              controller: passwordController,
-              decoration: InputDecoration(
-                labelText: 'Contraseña',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // Validar credenciales e iniciar sesión
-              },
-              child: Text('Iniciar Sesión'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => RegisterScreen()),
-                );
-              },
-              child: Text('¿No tienes cuenta? Regístrate aquí'),
-            ),
-          ],
-        ),
       ),
     );
   }
